@@ -7,16 +7,16 @@
 #include "trace_log_writer.h"
 #include "make_unique.h"
 #include "signalrclient/signalr_exception.h"
-
-using namespace web;
+#include "json/json.h"
+#include "signalr_value_impl.h"
 
 namespace signalr
 {
     // unnamed namespace makes it invisble outside this translation unit
     namespace
     {
-        static std::function<void(const json::value&)> create_hub_invocation_callback(const logger& logger,
-            const std::function<void(const json::value&)>& set_result,
+        static std::function<void(const signalr_value&)> create_hub_invocation_callback(const logger& logger,
+            const std::function<void(const signalr_value&)>& set_result,
             const std::function<void(const std::exception_ptr e)>& set_exception);
     }
 
@@ -44,9 +44,12 @@ namespace signalr
         std::unique_ptr<transport_factory> transport_factory)
         : m_connection(connection_impl::create(url, trace_level, log_writer,
         std::move(http_client), std::move(transport_factory))), m_logger(log_writer, trace_level),
-        m_callback_manager(json::value::parse(_XPLATSTR("{ \"error\" : \"connection went out of scope before invocation result was received\"}"))),
         m_disconnected([]() noexcept {}), m_handshakeReceived(false)
-    { }
+    {
+        Json::Value root;
+        Json::Reader().parse("{\"error\":\"connection went out of scope before invocation result was received\"}", root);
+        m_callback_manager = callback_manager(std::move(signalr_value_impl::create(root)));
+    }
 
     void hub_connection_impl::initialize()
     {
@@ -73,7 +76,7 @@ namespace signalr
         });
     }
 
-    void hub_connection_impl::on(const std::string& event_name, const std::function<void(const json::value &)>& handler)
+    void hub_connection_impl::on(const std::string& event_name, const std::function<void(const signalr_value&)>& handler)
     {
         if (event_name.length() == 0)
         {
@@ -93,7 +96,7 @@ namespace signalr
                 "an action for this event has already been registered. event name: " + event_name);
         }
 
-        m_subscriptions.insert(std::pair<std::string, std::function<void(const json::value &)>> {event_name, handler});
+        m_subscriptions.insert(std::pair<std::string, std::function<void(const signalr_value&)>> {event_name, handler});
     }
 
     void hub_connection_impl::start(std::function<void(std::exception_ptr)> callback) noexcept
@@ -177,7 +180,9 @@ namespace signalr
 
     void hub_connection_impl::stop(std::function<void(std::exception_ptr)> callback) noexcept
     {
-        m_callback_manager.clear(json::value::parse(_XPLATSTR("{ \"error\" : \"connection was stopped before invocation result was received\"}")));
+        Json::Value root;
+        Json::Reader().parse("{ \"error\" : \"connection was stopped before invocation result was received\"}", root);
+        m_callback_manager.clear(signalr_value_impl::create(root));
         m_connection->stop(callback);
     }
 
@@ -201,9 +206,11 @@ namespace signalr
             while (pos != std::string::npos)
             {
                 auto message = response.substr(lastPos, pos - lastPos);
-                const auto result = web::json::value::parse(utility::conversions::to_string_t(message));
 
-                if (!result.is_object())
+                Json::Value root;
+                Json::Reader().parse(message, root);
+
+                if (!root.isObject())
                 {
                     m_logger.log(trace_level::info, std::string("unexpected response received from the server: ")
                         .append(message));
@@ -213,9 +220,9 @@ namespace signalr
 
                 if (!m_handshakeReceived)
                 {
-                    if (result.has_field(_XPLATSTR("error")))
+                    if (root[std::string("error")] != nullptr)
                     {
-                        auto error = utility::conversions::to_utf8string(result.at(_XPLATSTR("error")).as_string());
+                        auto error = root["error"].asCString();
                         m_logger.log(trace_level::errors, std::string("handshake error: ")
                             .append(error));
                         m_handshakeTask.set_exception(signalr_exception(std::string("Received an error during handshake: ").append(error)));
@@ -223,7 +230,7 @@ namespace signalr
                     }
                     else
                     {
-                        if (result.has_field(_XPLATSTR("type")))
+                        if (root["type"] != nullptr)
                         {
                             m_handshakeTask.set_exception(signalr_exception(std::string("Received unexpected message while waiting for the handshake response.")));
                         }
@@ -233,16 +240,16 @@ namespace signalr
                     }
                 }
 
-                auto messageType = result.at(_XPLATSTR("type"));
-                switch (messageType.as_integer())
+                auto messageType = root["type"];
+                switch (messageType.asInt())
                 {
                 case MessageType::Invocation:
                 {
-                    auto method = utility::conversions::to_utf8string(result.at(_XPLATSTR("target")).as_string());
+                    auto method = root["target"].asCString();
                     auto event = m_subscriptions.find(method);
                     if (event != m_subscriptions.end())
                     {
-                        event->second(result.at(_XPLATSTR("arguments")));
+                        event->second(signalr_value_impl::create(root["arguments"]));
                     }
                     break;
                 }
@@ -254,11 +261,11 @@ namespace signalr
                     break;
                 case MessageType::Completion:
                 {
-                    if (result.has_field(_XPLATSTR("error")) && result.has_field(_XPLATSTR("result")))
+                    if (root["error"] != nullptr && root["result"] != nullptr)
                     {
                         // TODO: error
                     }
-                    invoke_callback(result);
+                    invoke_callback(signalr_value_impl::create(root));
                     break;
                 }
                 case MessageType::CancelInvocation:
@@ -285,9 +292,9 @@ namespace signalr
         }
     }
 
-    bool hub_connection_impl::invoke_callback(const web::json::value& message)
+    bool hub_connection_impl::invoke_callback(const signalr_value& message)
     {
-        auto id = utility::conversions::to_utf8string(message.at(_XPLATSTR("invocationId")).as_string());
+        auto id = message["invocationId"].getString();
         if (!m_callback_manager.invoke_callback(id, message, true))
         {
             m_logger.log(trace_level::info, std::string("no callback found for id: ").append(id));
@@ -297,43 +304,44 @@ namespace signalr
         return true;
     }
 
-    void hub_connection_impl::invoke(const std::string& method_name, const json::value& arguments, std::function<void(const web::json::value&, std::exception_ptr)> callback) noexcept
+    void hub_connection_impl::invoke(const std::string& method_name, const signalr_value& arguments, std::function<void(const signalr_value&, std::exception_ptr)> callback) noexcept
     {
-        _ASSERTE(arguments.is_array());
+        _ASSERTE(arguments.isArray());
 
         const auto callback_id = m_callback_manager.register_callback(
-            create_hub_invocation_callback(m_logger, [callback](const json::value& result) { callback(result, nullptr); },
-                [callback](const std::exception_ptr e) { callback(json::value(), e); }));
+            create_hub_invocation_callback(m_logger, [callback](const signalr_value& result) { callback(result, nullptr); },
+                [callback](const std::exception_ptr e) { callback(signalr_value::value(), e); }));
 
         invoke_hub_method(method_name, arguments, callback_id, nullptr,
-            [callback](const std::exception_ptr e){ callback(json::value(), e); });
+            [callback](const std::exception_ptr e){ callback(signalr_value::value(), e); });
     }
 
-    void hub_connection_impl::send(const std::string& method_name, const json::value& arguments, std::function<void(std::exception_ptr)> callback) noexcept
+    void hub_connection_impl::send(const std::string& method_name, const signalr_value& arguments, std::function<void(std::exception_ptr)> callback) noexcept
     {
-        _ASSERTE(arguments.is_array());
+        _ASSERTE(arguments.isArray());
 
         invoke_hub_method(method_name, arguments, "",
             [callback]() { callback(nullptr); },
             [callback](const std::exception_ptr e){ callback(e); });
     }
 
-    void hub_connection_impl::invoke_hub_method(const std::string& method_name, const json::value& arguments,
+    void hub_connection_impl::invoke_hub_method(const std::string& method_name, const signalr_value& arguments,
         const std::string& callback_id, std::function<void()> set_completion, std::function<void(const std::exception_ptr)> set_exception) noexcept
     {
-        json::value request;
-        request[_XPLATSTR("type")] = json::value(1);
+        Json::Value request;
+        request["type"] = Json::Value(1);
         if (!callback_id.empty())
         {
-            request[_XPLATSTR("invocationId")] = json::value::string(utility::conversions::to_string_t(callback_id));
+            request["invocationId"] = Json::Value(callback_id);
         }
-        request[_XPLATSTR("target")] = json::value::string(utility::conversions::to_string_t(method_name));
-        request[_XPLATSTR("arguments")] = arguments;
+        request["target"] = Json::Value(method_name);
+        request["arguments"] = signalr_value_impl::getJson(arguments);
 
         // weak_ptr prevents a circular dependency leading to memory leak and other problems
         auto weak_hub_connection = std::weak_ptr<hub_connection_impl>(shared_from_this());
 
-        m_connection->send(utility::conversions::to_utf8string(request.serialize() + _XPLATSTR('\x1e')), [set_completion, set_exception, weak_hub_connection, callback_id](std::exception_ptr exception)
+        ;
+        m_connection->send(Json::FastWriter().write(request) + '\x1e', [set_completion, set_exception, weak_hub_connection, callback_id](std::exception_ptr exception)
         {
             if (exception)
             {
@@ -379,25 +387,25 @@ namespace signalr
     // unnamed namespace makes it invisble outside this translation unit
     namespace
     {
-        static std::function<void(const json::value&)> create_hub_invocation_callback(const logger& logger,
-            const std::function<void(const json::value&)>& set_result,
+        static std::function<void(const signalr_value&)> create_hub_invocation_callback(const logger& logger,
+            const std::function<void(const signalr_value&)>& set_result,
             const std::function<void(const std::exception_ptr)>& set_exception)
         {
-            return [logger, set_result, set_exception](const json::value& message)
+            return [logger, set_result, set_exception](const signalr_value& message)
             {
-                if (message.has_field(_XPLATSTR("result")))
+                if (message.hasMember("result"))
                 {
-                    set_result(message.at(_XPLATSTR("result")));
+                    set_result(message["result"]);
                 }
-                else if (message.has_field(_XPLATSTR("error")))
+                else if (message.hasMember("error"))
                 {
                     set_exception(
                         std::make_exception_ptr(
-                            hub_exception(utility::conversions::to_utf8string(message.at(_XPLATSTR("error")).serialize()))));
+                            hub_exception(Json::FastWriter().write(signalr_value_impl::getJson(message["error"])))));
                 }
                 else
                 {
-                    set_result(json::value());
+                    set_result(signalr_value());
                 }
             };
         }

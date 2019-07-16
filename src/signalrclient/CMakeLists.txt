@@ -18,6 +18,8 @@ set (SOURCES
   web_request.cpp
   web_request_factory.cpp
   websocket_transport.cpp
+  signalr_value.cpp
+  jsoncpp.cpp
 )
 
 add_library (signalrclient SHARED ${SOURCES})

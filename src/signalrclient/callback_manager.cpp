@@ -8,9 +8,20 @@ namespace signalr
 {
     // dtor_clear_arguments will be passed when closing any pending callbacks when the `callback_manager` is
     // destroyed (i.e. in the dtor)
-    callback_manager::callback_manager(const web::json::value& dtor_clear_arguments)
-        : m_dtor_clear_arguments(dtor_clear_arguments)
+    callback_manager::callback_manager(signalr_value&& dtor_clear_arguments)
+        : m_dtor_clear_arguments(std::move(dtor_clear_arguments))
     { }
+
+    callback_manager::callback_manager()
+        : m_dtor_clear_arguments(signalr_value())
+    { }
+
+    callback_manager& callback_manager::operator=(callback_manager&& rhs) noexcept
+    {
+        m_dtor_clear_arguments = std::move(rhs.m_dtor_clear_arguments);
+
+        return *this;
+    }
 
     callback_manager::~callback_manager()
     {
@@ -18,7 +29,7 @@ namespace signalr
     }
 
     // note: callback must not throw except for the `on_progress` callback which will never be invoked from the dtor
-    std::string callback_manager::register_callback(const std::function<void(const web::json::value&)>& callback)
+    std::string callback_manager::register_callback(const std::function<void(const signalr_value&)>& callback)
     {
         auto callback_id = get_callback_id();
 
@@ -33,9 +44,9 @@ namespace signalr
 
 
     // invokes a callback and stops tracking it if remove callback set to true
-    bool callback_manager::invoke_callback(const std::string& callback_id, const web::json::value& arguments, bool remove_callback)
+    bool callback_manager::invoke_callback(const std::string& callback_id, const signalr_value& arguments, bool remove_callback)
     {
-        std::function<void(const web::json::value& arguments)> callback;
+        std::function<void(const signalr_value &arguments)> callback;
 
         {
             std::lock_guard<std::mutex> lock(m_map_lock);
@@ -67,7 +78,7 @@ namespace signalr
         }
     }
 
-    void callback_manager::clear(const web::json::value& arguments)
+    void callback_manager::clear(const signalr_value& arguments)
     {
         {
             std::lock_guard<std::mutex> lock(m_map_lock);

@@ -5,6 +5,8 @@
 #include "negotiate.h"
 #include "url_builder.h"
 #include "signalrclient/signalr_exception.h"
+#include "json.hpp"
+#include "json/json.h"
 
 namespace signalr
 {
@@ -42,6 +44,11 @@ namespace signalr
 
                 try
                 {
+                    //nlohmann::json::basic_json()
+                    //auto j = nlohmann::json::parse(http_response.content);
+                    Json::Value root;
+                    std::string errs;
+                    auto j = Json::CharReaderBuilder().newCharReader()->parse(http_response.content.c_str(), http_response.content.c_str() + http_response.content.size(), &root, &errs);
                     auto negotiation_response_json = web::json::value::parse(utility::conversions::to_string_t(http_response.content));
 
                     negotiation_response response;
