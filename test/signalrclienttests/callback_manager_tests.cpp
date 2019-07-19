@@ -25,7 +25,9 @@ TEST(callback_manager_invoke_callback, invoke_callback_invokes_and_removes_callb
     auto callback_id = callback_mgr.register_callback(
         [&callback_argument](const signalr_value& argument)
         {
-            callback_argument = Json::FastWriter().write(signalr_value_impl::getJson(argument));
+            auto writer = Json::FastWriter();
+            writer.omitEndingLineFeed();
+            callback_argument = writer.write(signalr_value_impl::getJson(argument));
         });
 
     auto callback_found = callback_mgr.invoke_callback(callback_id, signalr_value_impl::create(Json::Value(42)), true);

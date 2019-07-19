@@ -220,7 +220,7 @@ namespace signalr
 
                 if (!m_handshakeReceived)
                 {
-                    if (root[std::string("error")] != nullptr)
+                    if (!root["error"].isNull())
                     {
                         auto error = root["error"].asCString();
                         m_logger.log(trace_level::errors, std::string("handshake error: ")
@@ -230,7 +230,7 @@ namespace signalr
                     }
                     else
                     {
-                        if (root["type"] != nullptr)
+                        if (!root["type"].isNull())
                         {
                             m_handshakeTask.set_exception(signalr_exception(std::string("Received unexpected message while waiting for the handshake response.")));
                         }
@@ -261,7 +261,7 @@ namespace signalr
                     break;
                 case MessageType::Completion:
                 {
-                    if (root["error"] != nullptr && root["result"] != nullptr)
+                    if (!root["error"].isNull() && !root["result"].isNull())
                     {
                         // TODO: error
                     }
@@ -340,8 +340,9 @@ namespace signalr
         // weak_ptr prevents a circular dependency leading to memory leak and other problems
         auto weak_hub_connection = std::weak_ptr<hub_connection_impl>(shared_from_this());
 
-        ;
-        m_connection->send(Json::FastWriter().write(request) + '\x1e', [set_completion, set_exception, weak_hub_connection, callback_id](std::exception_ptr exception)
+        auto writer = Json::FastWriter();
+        writer.omitEndingLineFeed();
+        m_connection->send(writer.write(request) + '\x1e', [set_completion, set_exception, weak_hub_connection, callback_id](std::exception_ptr exception)
         {
             if (exception)
             {
@@ -399,9 +400,11 @@ namespace signalr
                 }
                 else if (message.hasMember("error"))
                 {
+                    auto writer = Json::FastWriter();
+                    writer.omitEndingLineFeed();
                     set_exception(
                         std::make_exception_ptr(
-                            hub_exception(Json::FastWriter().write(signalr_value_impl::getJson(message["error"])))));
+                            hub_exception(writer.write(signalr_value_impl::getJson(message["error"])))));
                 }
                 else
                 {

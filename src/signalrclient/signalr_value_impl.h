@@ -33,7 +33,7 @@ namespace signalr
 
         bool hasMember(const std::string& name) const
         {
-            return json[name] != nullptr;
+            return json[name].isNull() == false;
         }
 
         bool isArray() const
