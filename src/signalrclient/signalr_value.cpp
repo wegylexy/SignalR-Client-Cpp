@@ -6,6 +6,22 @@
 
 namespace signalr
 {
+    signalr_value::signalr_value()
+        : m_impl(nullptr)
+    { }
+
+    signalr_value::signalr_value(signalr_value&& rhs)
+        : m_impl(std::move(rhs.m_impl))
+    { }
+
+    signalr_value& signalr_value::operator=(signalr_value&& rhs) noexcept
+    {
+        m_impl = rhs.m_impl;
+        rhs.m_impl = nullptr;
+
+        return *this;
+    }
+
     signalr_value signalr_value::array()
     {
         return signalr_value_impl::create(Json::Value(Json::ValueType::arrayValue));

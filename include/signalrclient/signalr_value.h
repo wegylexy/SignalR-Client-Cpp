@@ -15,29 +15,23 @@ namespace signalr
         static signalr_value array();
         static signalr_value value();
 
-        signalr_value()
-            : m_impl(nullptr)
-        { }
+        signalr_value();
 
-        signalr_value(signalr_value&& rhs)
-            : m_impl(std::move(rhs.m_impl))
-        { }
+        signalr_value(signalr_value&& rhs);
 
-        signalr_value& operator=(signalr_value&& rhs)
-        {
-            m_impl = rhs.m_impl;
-            rhs.m_impl = nullptr;
-
-            return *this;
-        }
+        signalr_value& operator=(signalr_value&& rhs) noexcept;
 
         signalr_value operator[](const std::string& name) const;
+        signalr_value operator[](int index) const;
 
         std::string getString() const;
+        int getInt() const;
+        float getFloat() const;
 
         bool hasMember(const std::string& name) const;
         bool isArray() const;
         bool isString() const;
+        bool isNumber() const;
     private:
         friend signalr_value_impl;
         signalr_value_impl* m_impl;
