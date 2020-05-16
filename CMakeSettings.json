@@ -7,10 +7,10 @@
       "inheritEnvironments": [ "msvc_x64_x64" ],
       "buildRoot": "${projectDir}\\out\\build\\${name}",
       "installRoot": "${projectDir}\\out\\install\\${name}",
-      "cmakeCommandArgs": "-DBUILD_SAMPLES=true -DUSE_CPPRESTSDK=true",
+      "cmakeCommandArgs": "-DBUILD_SAMPLES=false -DUSE_CPPRESTSDK=true -DBUILD_TESTING=false -DBUILD_SHARED_LIBS=false -DVCPKG_TARGET_TRIPLET=x64-windows-dynamic-static",
       "buildCommandArgs": "-v",
       "ctestCommandArgs": "",
-      "cmakeToolchain": "${projectDir}\\submodules\\vcpkg\\scripts\\buildsystems\\vcpkg.cmake",
+      "cmakeToolchain": "S:/repos/Microsoft/vcpkg/scripts/buildsystems/vcpkg.cmake",
       "variables": []
     },
     {
@@ -19,11 +19,37 @@
       "configurationType": "Release",
       "buildRoot": "${projectDir}\\out\\build\\${name}",
       "installRoot": "${projectDir}\\out\\install\\${name}",
-      "cmakeCommandArgs": "-DBUILD_SAMPLES=true -DUSE_CPPRESTSDK=true",
+      "cmakeCommandArgs": "-DBUILD_SAMPLES=false -DUSE_CPPRESTSDK=true -DBUILD_TESTING=false -DBUILD_SHARED_LIBS=false -DVCPKG_TARGET_TRIPLET=x64-windows-dynamic-static",
       "buildCommandArgs": "-v",
       "ctestCommandArgs": "",
-      "cmakeToolchain": "${projectDir}\\submodules\\vcpkg\\scripts\\buildsystems\\vcpkg.cmake",
+      "cmakeToolchain": "S:/repos/Microsoft/vcpkg/scripts/buildsystems/vcpkg.cmake",
       "inheritEnvironments": [ "msvc_x64_x64" ],
+      "variables": []
+    },
+    {
+      "name": "x86-Debug",
+      "generator": "Ninja",
+      "configurationType": "Debug",
+      "buildRoot": "${projectDir}\\out\\build\\${name}",
+      "installRoot": "${projectDir}\\out\\install\\${name}",
+      "cmakeCommandArgs": "-DBUILD_SAMPLES=false -DUSE_CPPRESTSDK=true -DBUILD_TESTING=false -DBUILD_SHARED_LIBS=false -DVCPKG_TARGET_TRIPLET=x86-windows-dynamic-static",
+      "buildCommandArgs": "-v",
+      "ctestCommandArgs": "",
+      "cmakeToolchain": "S:/repos/Microsoft/vcpkg/scripts/buildsystems/vcpkg.cmake",
+      "inheritEnvironments": [ "msvc_x86_x64" ],
+      "variables": []
+    },
+    {
+      "name": "x86-Release",
+      "generator": "Ninja",
+      "configurationType": "Release",
+      "buildRoot": "${projectDir}\\out\\build\\${name}",
+      "installRoot": "${projectDir}\\out\\install\\${name}",
+      "cmakeCommandArgs": "-DBUILD_SAMPLES=false -DUSE_CPPRESTSDK=true -DBUILD_TESTING=false -DBUILD_SHARED_LIBS=false -DVCPKG_TARGET_TRIPLET=x86-windows-dynamic-static",
+      "buildCommandArgs": "-v",
+      "ctestCommandArgs": "",
+      "cmakeToolchain": "S:/repos/Microsoft/vcpkg/scripts/buildsystems/vcpkg.cmake",
+      "inheritEnvironments": [ "msvc_x86_x64" ],
       "variables": []
     }
   ]
